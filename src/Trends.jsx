@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "./supabase.js";
 
 const TEAL = "#0F6E56";
 const TEAL_LIGHT = "#E1F5EE";
@@ -570,10 +571,29 @@ function QueenTab() {
 
 export default function Trends() {
   const [tab, setTab] = useState("colony");
+  const [dbData, setDbData] = useState({ inspections:[], queens:[], harvests:[], treatments:[], hives:[], apiaries:[], feed_log:[] });
+  const [dbLoading, setDbLoading] = useState(false);
+
+  async function loadDbData() {
+    setDbLoading(true);
+    const [{ data: ins }, { data: q }, { data: h }, { data: t }, { data: hv }, { data: ap }, { data: fl }] = await Promise.all([
+      supabase.from("inspections").select("*").order("visit_date", { ascending: false }),
+      supabase.from("queens").select("*").order("number"),
+      supabase.from("harvests").select("*").order("harvest_date", { ascending: false }),
+      supabase.from("treatments").select("*").order("treatment_date", { ascending: false }),
+      supabase.from("hives").select("*").order("number"),
+      supabase.from("apiaries").select("*").order("name"),
+      supabase.from("feed_log").select("*").order("feed_date", { ascending: false }),
+    ]);
+    setDbData({ inspections: ins||[], queens: q||[], harvests: h||[], treatments: t||[], hives: hv||[], apiaries: ap||[], feed_log: fl||[] });
+    setDbLoading(false);
+  }
+
   const tabs = [
     { id:"colony", label:"Colony health" },
     { id:"harvest", label:"Honey harvest" },
     { id:"queens", label:"Queen lineage" },
+    { id:"data", label:"Raw data" },
   ];
 
   return (
@@ -601,7 +621,7 @@ export default function Trends() {
           {/* Tab bar */}
           <div style={{ display:"flex", gap:0 }}>
             {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{
+              <button key={t.id} onClick={() => { setTab(t.id); if(t.id==="data") loadDbData(); }} style={{
                 padding:"12px 24px",
                 background:"none", border:"none",
                 borderBottom: tab===t.id ? "3px solid #fff" : "3px solid transparent",
@@ -619,7 +639,115 @@ export default function Trends() {
         {tab==="colony" && <ColonyTab />}
         {tab==="harvest" && <HarvestTab />}
         {tab==="queens" && <QueenTab />}
+        {tab==="data" && <DataTab data={dbData} loading={dbLoading} />}
       </div>
+    </div>
+  );
+}
+
+// ── DataTab component ─────────────────────────────────────────────────────────
+
+function DataTab({ data, loading }) {
+  const [activeTable, setActiveTable] = useState("inspections");
+
+  function downloadCSV(rows, filename) {
+    if (!rows || rows.length === 0) return;
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(","),
+      ...rows.map(row => headers.map(h => {
+        const val = row[h] ?? "";
+        return typeof val === "string" && val.includes(",") ? `"${val}"` : val;
+      }).join(","))
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const tables = [
+    { id:"inspections", label:"Inspections",  count: data.inspections?.length  || 0 },
+    { id:"queens",      label:"Queens",        count: data.queens?.length        || 0 },
+    { id:"harvests",    label:"Harvests",      count: data.harvests?.length      || 0 },
+    { id:"treatments",  label:"Treatments",    count: data.treatments?.length    || 0 },
+    { id:"hives",       label:"Hives",         count: data.hives?.length         || 0 },
+    { id:"apiaries",    label:"Apiaries",      count: data.apiaries?.length      || 0 },
+    { id:"feed_log",    label:"Feed log",      count: data.feed_log?.length      || 0 },
+  ];
+
+  const rows = data[activeTable] || [];
+  const columns = rows.length > 0 ? Object.keys(rows[0]).filter(k => k !== "id") : [];
+
+  const TEAL = "#0F6E56";
+  const TEAL_LIGHT = "#E1F5EE";
+
+  if (loading) {
+    return <div style={{ textAlign:"center", padding:"60px 20px", color:"#9CA3AF", fontSize:15 }}>Loading data…</div>;
+  }
+
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20, flexWrap:"wrap", gap:12 }}>
+        <div style={{ display:"flex", gap:8 }}>
+          {tables.map(t => (
+            <button key={t.id} onClick={() => setActiveTable(t.id)} style={{
+              padding:"8px 16px", borderRadius:99,
+              background: activeTable===t.id ? TEAL : "#fff",
+              color: activeTable===t.id ? "#fff" : "#374151",
+              border: activeTable===t.id ? `1.5px solid ${TEAL}` : "0.5px solid #D1D5DB",
+              fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+            }}>
+              {t.label} <span style={{ opacity:0.7, fontWeight:400 }}>({t.count})</span>
+            </button>
+          ))}
+        </div>
+        <button onClick={() => downloadCSV(rows, `waggle_${activeTable}_${new Date().toISOString().split("T")[0]}.csv`)} style={{
+          padding:"9px 18px", background: TEAL_LIGHT, color:"#085041",
+          border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+          display:"flex", alignItems:"center", gap:6,
+        }}>
+          ↓ Download CSV
+        </button>
+      </div>
+
+      <div style={{ background:"#fff", borderRadius:16, border:"0.5px solid #E5E7EB", overflow:"hidden" }}>
+        {rows.length === 0 ? (
+          <div style={{ padding:"40px 24px", textAlign:"center", color:"#9CA3AF", fontSize:14 }}>No records found.</div>
+        ) : (
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+              <thead>
+                <tr style={{ background:"#F9FAFB", borderBottom:"1px solid #E5E7EB" }}>
+                  {columns.map(col => (
+                    <th key={col} style={{ padding:"10px 14px", textAlign:"left", fontWeight:700, color:"#6B7280", fontSize:11, textTransform:"uppercase", letterSpacing:"0.05em", whiteSpace:"nowrap" }}>
+                      {col.replace(/_/g," ")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <tr key={i} style={{ borderBottom:"0.5px solid #F3F4F6", background: i%2===0?"#fff":"#FAFAFA" }}>
+                    {columns.map(col => {
+                      const val = row[col];
+                      const display = val === null || val === undefined ? "—" : typeof val === "boolean" ? (val ? "Yes" : "No") : String(val);
+                      const isNote = col === "notes" || col === "health_note" || col === "qc_note";
+                      return (
+                        <td key={col} style={{ padding:"9px 14px", color:"#374151", verticalAlign:"top", maxWidth: isNote ? 300 : 180, whiteSpace: isNote ? "normal" : "nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                          {display}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize:12, color:"#9CA3AF", marginTop:12, textAlign:"right" }}>{rows.length} records · Internal IDs hidden · Last loaded {new Date().toLocaleTimeString("en-GB")}</div>
     </div>
   );
 }
