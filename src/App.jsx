@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase.js";
+import {
+  BeeSimple, BeeFull, HiveBox, HoneycombIcon, QueenIcon,
+  HoneyJar, QueenCellIcon, AlertCircle, CheckCircle,
+  InspectionIcon, SwarmIcon, VarroaIcon, SafetyIcon,
+  TrendIcon, SuperCountIcon, BroodFrameIcon,
+} from "./icons.jsx";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
@@ -71,10 +77,10 @@ function generateActions(hive,inspections,queens){
   return actions;
 }
 
-// ── Honeycomb SVG background ──────────────────────────────────────────────────
+// ── Honeycomb header background ───────────────────────────────────────────────
 function HoneycombBg(){
   return(
-    <svg style={{position:"absolute",top:0,right:-20,opacity:0.08,pointerEvents:"none"}} width="180" height="160" viewBox="0 0 180 160" fill="none">
+    <svg style={{position:"absolute",top:0,right:-20,opacity:0.07,pointerEvents:"none"}} width="180" height="160" viewBox="0 0 180 160" fill="none" aria-hidden="true">
       <g stroke="#fff" strokeWidth="1">
         <polygon points="45,8 75,8 90,34 75,60 45,60 30,34"/>
         <polygon points="90,34 120,34 135,60 120,86 90,86 75,60"/>
@@ -83,26 +89,7 @@ function HoneycombBg(){
         <polygon points="135,8 165,8 180,34 165,60 135,60 120,34"/>
         <polygon points="0,34 30,34 45,60 30,86 0,86 -15,60"/>
         <polygon points="135,60 165,60 180,86 165,112 135,112 120,86"/>
-        <polygon points="0,86 30,86 45,112 30,138 0,138 -15,112"/>
       </g>
-    </svg>
-  );
-}
-
-// ── Bee wordmark ──────────────────────────────────────────────────────────────
-function BeeIcon({size=24}){
-  return(
-    <svg width={size} height={size} viewBox="0 0 28 28" fill="none">
-      <ellipse cx="14" cy="14" rx="5.5" ry="7.5" fill="#9FE1CB" opacity="0.95"/>
-      <rect x="10.5" y="9.5" width="7" height="2.5" rx="1.25" fill={T.teal}/>
-      <rect x="10.5" y="13" width="7" height="2" rx="1" fill={T.teal}/>
-      <rect x="10.5" y="16.5" width="7" height="2" rx="1" fill={T.teal}/>
-      <ellipse cx="8.5" cy="11" rx="4.5" ry="2.5" fill="#fff" opacity="0.4" transform="rotate(-25 8.5 11)"/>
-      <ellipse cx="19.5" cy="11" rx="4.5" ry="2.5" fill="#fff" opacity="0.4" transform="rotate(25 19.5 11)"/>
-      <line x1="12" y1="7" x2="10" y2="3.5" stroke="#9FE1CB" strokeWidth="1.2" strokeLinecap="round"/>
-      <line x1="16" y1="7" x2="18" y2="3.5" stroke="#9FE1CB" strokeWidth="1.2" strokeLinecap="round"/>
-      <circle cx="9.5" cy="3" r="1.2" fill="#9FE1CB"/>
-      <circle cx="18.5" cy="3" r="1.2" fill="#9FE1CB"/>
     </svg>
   );
 }
@@ -151,9 +138,9 @@ function InspectionSavedScreen({hive,seasonCount,weekCount,streak,onDone}){
       <Confetti/>
       <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 28px",position:"relative",zIndex:1}}>
         <div style={{display:"flex",gap:8,marginBottom:24}}>
-          {["🐝","🐝","🐝"].map((b,i)=>(
-            <span key={i} style={{fontSize:i===1?42:28,transition:"all 0.5s cubic-bezier(0.34,1.56,0.64,1)",opacity:vis[i]?1:0,transform:vis[i]?"translateY(0) scale(1)":"translateY(24px) scale(0.3)",display:"inline-block"}}>
-              {b}
+          {[0,1,2].map(i=>(
+            <span key={i} style={{transition:"all 0.5s cubic-bezier(0.34,1.56,0.64,1)",opacity:vis[i]?1:0,transform:vis[i]?"translateY(0) scale(1)":"translateY(24px) scale(0.3)",display:"inline-block"}}>
+              <BeeSimple size={i===1?40:28}/>
             </span>
           ))}
         </div>
@@ -164,7 +151,7 @@ function InspectionSavedScreen({hive,seasonCount,weekCount,streak,onDone}){
           {new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"})} · All fields saved
         </div>
         <div style={{display:"flex",gap:10,width:"100%",marginBottom:32}}>
-          {[["🐝",weekCount,"This week"],["📋",seasonCount,"This season"],["🔥",streak+"wk","Streak"]].map(([icon,val,lbl],i)=>(
+          {[[<BeeSimple size={20}/>,weekCount,"This week"],[<InspectionIcon size={20}/>,seasonCount,"This season"],[<span style={{fontSize:20}}>🔥</span>,streak+"wk","Streak"]].map(([icon,val,lbl],i)=>(
             <div key={i} style={{flex:1,background:"rgba(255,255,255,0.12)",borderRadius:14,padding:"14px 8px",textAlign:"center",backdropFilter:"blur(4px)"}}>
               <div style={{fontSize:18,marginBottom:4}}>{icon}</div>
               <div style={{fontFamily:FONT_SANS,fontSize:22,fontWeight:700,color:"#fff",letterSpacing:"-0.5px"}}>{val}</div>
@@ -185,7 +172,7 @@ function FirstEggsMilestone({hive,queen,onLog,onDismiss}){
   return(
     <div style={{position:"absolute",inset:0,background:"rgba(10,20,15,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:50,backdropFilter:"blur(2px)"}}>
       <div style={{background:"#fff",borderRadius:24,padding:"32px 24px",textAlign:"center",width:"100%",maxWidth:340}}>
-        <div style={{fontSize:52,marginBottom:8,display:"inline-block",animation:"gentlePulse 1.6s ease-in-out infinite alternate"}}>🐝</div>
+        <div style={{marginBottom:16,display:"flex",justifyContent:"center"}}><BeeFull size={52}/></div>
         <div style={{display:"inline-block",background:T.tealLight,color:T.teal,fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:99,marginBottom:12,fontFamily:FONT_SANS,letterSpacing:"0.04em",textTransform:"uppercase"}}>Queen milestone</div>
         <div style={{fontFamily:FONT_DISPLAY,fontSize:24,color:T.ink,marginBottom:8,lineHeight:1.2}}>First eggs in<br/>Hive {hive.number}!</div>
         <div style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkMid,lineHeight:1.6,marginBottom:20}}>
@@ -213,9 +200,9 @@ function HarvestCelebration({harvest,previousBest,onDone}){
     <div style={{height:"100%",display:"flex",flexDirection:"column",background:`linear-gradient(160deg, ${T.teal} 0%, #083D2D 100%)`,alignItems:"center",padding:"40px 24px",overflowY:"auto",position:"relative"}}>
       <HoneycombBg/>
       <div style={{position:"relative",zIndex:1,width:"100%",display:"flex",flexDirection:"column",alignItems:"center"}}>
-        <div style={{display:"flex",gap:8,marginBottom:20}}>
-          {["🐝","🍯","🐝"].map((e,i)=>(
-            <span key={i} style={{fontSize:36,display:"inline-block",animation:`hb${i} 1.2s ${i*0.25}s ease-in-out infinite alternate`}}>{e}</span>
+        <div style={{display:"flex",gap:10,marginBottom:20,alignItems:"center"}}>
+          {[<BeeSimple size={36}/>,<HoneyJar size={36}/>,<BeeSimple size={36}/>].map((icon,i)=>(
+            <span key={i} style={{display:"inline-block",animation:`hb${i} 1.2s ${i*0.25}s ease-in-out infinite alternate`}}>{icon}</span>
           ))}
         </div>
         <div style={{fontFamily:FONT_DISPLAY,fontSize:28,color:"#fff",textAlign:"center",marginBottom:4,lineHeight:1.1}}>{harvest.season} {harvest.year}</div>
@@ -259,7 +246,7 @@ function StreakCard({inspections,hives}){
   return(
     <div style={{background:T.white,border:`0.5px solid ${T.border}`,borderRadius:16,marginBottom:12,padding:"16px 18px",boxShadow:"0 1px 3px rgba(0,0,0,0.05)"}}>
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
-        <span style={{fontSize:28}}>🔥</span>
+        <span style={{fontSize:28,flexShrink:0}}>🔥</span>
         <div>
           <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.ink}}>{streak}-week inspection streak</div>
           <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.inkLight,marginTop:1}}>Every hive checked every week</div>
@@ -277,10 +264,13 @@ function StreakCard({inspections,hives}){
           </div>;
         })}
       </div>
-      <div style={{background:T.surface,borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <span style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkMid}}>Personal best this season</span>
-        <span style={{fontFamily:FONT_SANS,fontSize:16,fontWeight:800,color:T.teal}}>{streak} weeks 🐝</span>
-      </div>
+        <div style={{background:T.surface,borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <span style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkMid}}>Personal best this season</span>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <span style={{fontFamily:FONT_SANS,fontSize:16,fontWeight:800,color:T.teal}}>{streak} weeks</span>
+            <BeeSimple size={18}/>
+          </div>
+        </div>
     </div>
   );
 }
@@ -294,7 +284,7 @@ function AllClearBanner({hives,inspections}){
   if(checked.length<active.length)return null;
   return(
     <div style={{background:T.tealLight,border:`0.5px solid ${T.tealSoft}`,borderRadius:16,padding:"16px 18px",marginBottom:12,display:"flex",alignItems:"flex-start",gap:14}}>
-      <span style={{fontSize:30,flexShrink:0,lineHeight:1}}>🐝</span>
+      <BeeFull size={32}/>
       <div>
         <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.teal,marginBottom:3}}>All hives checked this week</div>
         <div style={{fontFamily:FONT_SANS,fontSize:13,color:T.tealMid,lineHeight:1.5}}>Every colony has been visited. Nothing urgent. Enjoy the weekend.</div>
@@ -401,20 +391,20 @@ function SectionLabel({children}){
 
 function ActionBanner({action}){
   const map={
-    high:[T.redLight,"#FECACA","#7A1F1F",T.red],
-    medium:[T.amberLight,"#FDE68A","#7A4A00",T.amber],
-    low:[T.surface,T.border,T.inkLight,"#9A9A9A"],
+    high:  {bg:T.redLight,   border:"#FECACA", text:"#7A1F1F", color:"red"},
+    medium:{bg:T.amberLight, border:"#FDE68A", text:"#7A4A00", color:"amber"},
+    low:   {bg:T.surface,    border:T.border,  text:T.inkLight,color:"teal"},
   };
-  const[bg,border,text,dot]=map[action.priority]||map.low;
-  return<div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"11px 18px",background:bg,borderBottom:`0.5px solid ${border}`}}>
-    <div style={{width:7,height:7,borderRadius:"50%",background:dot,flexShrink:0,marginTop:5}}/>
-    <span style={{fontFamily:FONT_SANS,fontSize:13,color:text,lineHeight:1.55,flex:1}}>{action.text}</span>
+  const s=map[action.priority]||map.low;
+  return<div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 16px",background:s.bg,borderBottom:`0.5px solid ${s.border}`}}>
+    <div style={{flexShrink:0,marginTop:1}}><AlertCircle size={16} color={s.color}/></div>
+    <span style={{fontFamily:FONT_SANS,fontSize:13,color:s.text,lineHeight:1.55,flex:1}}>{action.text}</span>
   </div>;
 }
 
 function LoadingScreen(){
   return<div style={{height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:`linear-gradient(160deg, ${T.teal} 0%, ${T.tealMid} 100%)`}}>
-    <BeeIcon size={40}/>
+    <BeeSimple size={44}/>
     <div style={{fontFamily:FONT_DISPLAY,fontSize:34,color:"#fff",marginTop:12,marginBottom:6}}>Waggle</div>
     <div style={{fontFamily:FONT_SANS,fontSize:14,color:"#9FE1CB"}}>Loading your hives…</div>
   </div>;
@@ -422,7 +412,7 @@ function LoadingScreen(){
 
 function EmptyHiveState(){
   return<div style={{textAlign:"center",padding:"48px 24px"}}>
-    <div style={{fontSize:52,marginBottom:14,opacity:0.4}}>🐝</div>
+    <div style={{marginBottom:14,opacity:0.4,display:"flex",justifyContent:"center"}}><HiveBox size={52}/></div>
     <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:600,color:T.inkMid,marginBottom:6}}>No inspections yet</div>
     <div style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkLight,lineHeight:1.6}}>Once you log your first inspection, it will appear here.</div>
   </div>;
@@ -455,7 +445,7 @@ function HomeHeader({farmCount,homeCount,urgentCount,onSafety}){
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-            <BeeIcon size={26}/>
+            <BeeSimple size={26}/>
             <div style={{fontFamily:FONT_DISPLAY,fontSize:30,color:"#fff",letterSpacing:"-0.3px",lineHeight:1}}>Waggle</div>
           </div>
           <div style={{fontFamily:FONT_SANS,fontSize:12,color:"#9FE1CB"}}>
@@ -713,7 +703,10 @@ function QueenRegister({queens,hives,onBack,onEditQueen}){
     const isOpen=openId===queen.id;
     return<div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,marginBottom:8,overflow:"hidden",opacity:isLost?0.7:1,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
       <div onClick={()=>setOpenId(isOpen?null:queen.id)} style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer"}}>
-        <div style={{width:44,height:44,borderRadius:"50%",background:cBg[queen.colour]||T.surface,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,color:cTx[queen.colour]||T.inkMid,flexShrink:0,fontFamily:FONT_SANS}}>Q{queen.number}</div>
+        <div style={{width:44,height:44,borderRadius:"50%",background:cBg[queen.colour]||T.surface,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,position:"relative"}}>
+          <QueenIcon size={28} muted={isLost}/>
+          <div style={{position:"absolute",bottom:-2,right:-2,background:cBg[queen.colour]||T.surface,borderRadius:99,padding:"1px 4px",fontFamily:FONT_SANS,fontSize:9,fontWeight:700,color:cTx[queen.colour]||T.inkMid,border:`0.5px solid ${T.border}`}}>#{queen.number}</div>
+        </div>
         <div style={{flex:1}}>
           <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.ink}}>Queen #{queen.number}{hive?` · Hive ${hive.number}`:" · Unassigned"}</div>
           <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.inkLight,marginTop:2}}>{queen.colour} · {queen.year} · {queen.origin}</div>
@@ -768,7 +761,10 @@ function SafetyScreen({hives,onBack}){
       <div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,padding:18,marginBottom:12,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
         <div style={{fontFamily:FONT_SANS,fontSize:17,fontWeight:700,color:T.ink,marginBottom:3}}>{a.name}</div>
         <div style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkLight,marginBottom:14}}>{a.address}{a.landowner?` · ${a.landowner}`:""}</div>
-        <div style={{display:"inline-flex",alignItems:"center",gap:8,background:T.tealLight,color:T.teal,fontSize:14,fontWeight:700,padding:"10px 16px",borderRadius:99,fontFamily:FONT_SANS}}>📍 {a.w3w}</div>
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,background:T.tealLight,color:T.teal,fontSize:14,fontWeight:700,padding:"10px 16px",borderRadius:99,fontFamily:FONT_SANS,cursor:"pointer"}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.teal} strokeWidth="2" strokeLinecap="round"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+          {a.w3w}
+        </div>
       </div>
       <div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,padding:18,marginBottom:12,display:"flex",alignItems:"center",gap:16,boxShadow:"0 1px 3px rgba(0,0,0,0.04)"}}>
         <div style={{width:50,height:50,borderRadius:"50%",background:T.tealLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:T.teal,flexShrink:0,fontFamily:FONT_SANS}}>{a.emergencyContact.split(" ").map(w=>w[0]).join("")}</div>
@@ -778,9 +774,12 @@ function SafetyScreen({hives,onBack}){
           <div style={{fontFamily:FONT_SANS,fontSize:14,color:T.teal,fontWeight:600,marginTop:3}}>{a.emergencyPhone}</div>
         </div>
       </div>
-      <a href={`tel:${a.emergencyPhone}`} style={{textDecoration:"none",display:"block",marginBottom:16}}>
-        <div style={{width:"100%",padding:20,background:T.red,color:"#fff",borderRadius:16,fontSize:18,fontWeight:700,textAlign:"center",fontFamily:FONT_SANS}}>📞 Call {a.emergencyContact}</div>
-      </a>
+        <a href={`tel:${a.emergencyPhone}`} style={{textDecoration:"none",display:"block",marginBottom:16}}>
+          <div style={{width:"100%",padding:20,background:T.red,color:"#fff",borderRadius:16,fontSize:17,fontWeight:700,textAlign:"center",fontFamily:FONT_SANS,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.17 6.17l1.27-.84a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+            Call {a.emergencyContact}
+          </div>
+        </a>
       <SectionLabel>Hives at this apiary</SectionLabel>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {hives.filter(h=>h.apiary_name===apiary).map(h=><div key={h.id} style={{background:T.white,borderRadius:12,border:`0.5px solid ${T.border}`,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 1px 2px rgba(0,0,0,0.03)"}}>
@@ -852,7 +851,7 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
           <div style={{fontFamily:FONT_SANS,fontSize:16,fontWeight:700,color:T.ink}}>Hive {hive.number}</div>
           <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.inkLight,marginTop:2}}>{hive.apiary_name} · {last?`Last inspected ${formatDate(last.visit_date)}`:"Never inspected"}</div>
         </div>
-        {isHealthy?<span style={{fontSize:18}}>🐝</span>:<div style={{width:10,height:10,borderRadius:"50%",background:statusColor,flexShrink:0}}/>}
+        {isHealthy?<BeeSimple size={20}/>:<div style={{width:10,height:10,borderRadius:"50%",background:statusColor,flexShrink:0}}/>}
         <span style={{fontFamily:FONT_SANS,color:T.inkLight,fontSize:11}}>{open?"▲":"▼"}</span>
       </div>
       {open&&<>
@@ -890,12 +889,20 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
 
 // ── Tab Bar ───────────────────────────────────────────────────────────────────
 function TabBar({active,onChange}){
-  const tabs=[{id:"home",label:"Home",icon:"⌂"},{id:"queens",label:"Queens",icon:"♛"},{id:"trends",label:"Trends",icon:"↗"},{id:"safety",label:"Safety",icon:"⊕"}];
+  const tabs=[
+    {id:"home",   label:"Home",   Icon:(p)=><HiveBox   size={22} muted={p.muted}/>},
+    {id:"queens", label:"Queens", Icon:(p)=><QueenIcon size={22} muted={p.muted}/>},
+    {id:"trends", label:"Trends", Icon:(p)=><TrendIcon size={22} muted={p.muted}/>},
+    {id:"safety", label:"Safety", Icon:(p)=><SafetyIcon size={22} muted={p.muted}/>},
+  ];
   return<div style={{display:"flex",background:T.white,borderTop:`0.5px solid ${T.border}`,flexShrink:0,paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
-    {tabs.map(t=><button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"10px 0 13px",border:"none",background:"transparent",cursor:"pointer",fontFamily:FONT_SANS}}>
-      <span style={{fontSize:22,color:active===t.id?T.teal:T.inkLight}}>{t.icon}</span>
-      <span style={{fontFamily:FONT_SANS,fontSize:11,color:active===t.id?T.teal:T.inkLight,fontWeight:active===t.id?700:400,letterSpacing:"0.02em"}}>{t.label}</span>
-    </button>)}
+    {tabs.map(t=>{
+      const isActive=active===t.id;
+      return<button key={t.id} onClick={()=>onChange(t.id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"10px 0 13px",border:"none",background:"transparent",cursor:"pointer",fontFamily:FONT_SANS}}>
+        <t.Icon muted={!isActive}/>
+        <span style={{fontFamily:FONT_SANS,fontSize:10,color:isActive?T.teal:T.inkLight,fontWeight:isActive?700:400,letterSpacing:"0.02em"}}>{t.label}</span>
+      </button>;
+    })}
   </div>;
 }
 
