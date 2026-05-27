@@ -25,7 +25,6 @@ const T = {
   white:     "#FFFFFF",
 };
 
-// Google Fonts loaded in index.html — using DM Serif Display + DM Sans
 const FONT_DISPLAY = "'DM Serif Display', Georgia, serif";
 const FONT_SANS    = "'DM Sans', -apple-system, sans-serif";
 
@@ -33,6 +32,10 @@ const APIARIES = {
   Farm: { name:"Farm apiary", address:"Elton Moor Farm, Whinney Hill, Darlington Back Lane, TS21 1BQ", landowner:"Jonathan Marsh", w3w:"clean.verge.ample", emergencyContact:"Kay Chapman", emergencyPhone:"07852997063" },
   Home: { name:"Home apiary", address:"47 Grosvenor Road, Stockton on Tees, TS19 7AE", landowner:"Peter Chapman", w3w:"tests.hunt.social", emergencyContact:"Kay Chapman", emergencyPhone:"07852997063" },
 };
+
+// Queen colours by year (IBRA system: 2021=White, 2022=Yellow, 2023=Red, 2024=Green, 2025=Blue, cycle repeats)
+const YEAR_COLOURS = {0:"White",1:"Yellow",2:"Red",3:"Green",4:"Blue"};
+function yearColour(year){ return YEAR_COLOURS[year%5] || "White"; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function addDays(d,n){if(!d)return null;const x=new Date(d);x.setDate(x.getDate()+n);return x.toISOString().split("T")[0];}
@@ -62,14 +65,15 @@ function generateActions(hive,inspections,queens){
   const days=last?daysSince(last.visit_date):999;
   if(last){
     if(last.qc_action==="1 left"||last.qc_action==="2 left")actions.push({text:`Check if queen cell has hatched — left ${last.qc_action} on ${formatDate(last.visit_date)}`,priority:"high"});
+    if(last.queen_status==="Queenless")actions.push({text:`Colony queenless since ${formatDate(last.visit_date)} — check for QCs or new queen`,priority:"high"});
     if(last.brood_status==="No eggs")actions.push({text:`No eggs seen ${formatDate(last.visit_date)} — check for new queen`,priority:"high"});
     if(last.varroa==="High")actions.push({text:"Varroa drop HIGH — consider treatment urgently",priority:"high"});
     if(last.health!=="OK")actions.push({text:`Disease concern: ${last.health} — follow up required`,priority:"high"});
     if(last.room<=1)actions.push({text:"Hive congested — add super or consider split",priority:"medium"});
     if(last.supers_total>0)actions.push({text:`Check super fill — ${last.supers_total} super${last.supers_total>1?"s":""} on hive`,priority:"medium"});
     if(days>14){
-      const month=new Date().getMonth()+1; // 1-12
-      const inSeason=month>=3&&month<=9; // March to September
+      const month=new Date().getMonth()+1;
+      const inSeason=month>=3&&month<=9;
       if(inSeason)actions.push({text:`Inspection overdue — last visit ${formatDate(last.visit_date)} (${days} days ago)`,priority:"low"});
     }
   }else{actions.push({text:"No inspections recorded — log first inspection",priority:"high"});}
@@ -189,7 +193,42 @@ function FirstEggsMilestone({hive,queen,onLog,onDismiss}){
           <button onClick={onDismiss} style={{flex:1,padding:14,background:T.surface,color:T.inkMid,border:`0.5px solid ${T.border}`,borderRadius:12,fontSize:15,cursor:"pointer",fontFamily:FONT_SANS}}>Dismiss</button>
         </div>
       </div>
-      <style>{`@keyframes gentlePulse{from{transform:scale(1) rotate(-3deg)}to{transform:scale(1.1) rotate(3deg)}}`}</style>
+    </div>
+  );
+}
+
+// ── Queen seen / marked / clipped modal ──────────────────────────────────────
+function QueenSeenModal({hive,queen,onDone}){
+  const[marked,setMarked]=useState(queen?.marked||false);
+  const[clipped,setClipped]=useState(queen?.clipped||false);
+  const[saving,setSaving]=useState(false);
+  const handleSave=async()=>{
+    setSaving(true);
+    if(queen){
+      await supabase.from("queens").update({marked,clipped}).eq("id",queen.id);
+    }
+    onDone({marked,clipped});
+    setSaving(false);
+  };
+  return(
+    <div style={{position:"absolute",inset:0,background:"rgba(10,20,15,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,zIndex:50,backdropFilter:"blur(2px)"}}>
+      <div style={{background:"#fff",borderRadius:24,padding:"28px 24px",width:"100%",maxWidth:340}}>
+        <div style={{display:"inline-block",background:T.tealLight,color:T.teal,fontSize:11,fontWeight:700,padding:"5px 14px",borderRadius:99,marginBottom:14,fontFamily:FONT_SANS,letterSpacing:"0.04em",textTransform:"uppercase"}}>Queen seen</div>
+        <div style={{fontFamily:FONT_DISPLAY,fontSize:22,color:T.ink,marginBottom:18,lineHeight:1.2}}>Is she marked<br/>and/or clipped?</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:22}}>
+          <div onClick={()=>setMarked(!marked)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:marked?T.tealLight:T.surface,border:`1.5px solid ${marked?T.tealMid:T.border}`,borderRadius:12,cursor:"pointer",transition:"all 0.15s"}}>
+            <span style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:600,color:marked?T.teal:T.inkMid}}>Marked</span>
+            <span style={{fontSize:20}}>{marked?"✓":""}</span>
+          </div>
+          <div onClick={()=>setClipped(!clipped)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px",background:clipped?T.tealLight:T.surface,border:`1.5px solid ${clipped?T.tealMid:T.border}`,borderRadius:12,cursor:"pointer",transition:"all 0.15s"}}>
+            <span style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:600,color:clipped?T.teal:T.inkMid}}>Clipped</span>
+            <span style={{fontSize:20}}>{clipped?"✓":""}</span>
+          </div>
+        </div>
+        <button onClick={handleSave} disabled={saving} style={{width:"100%",padding:14,background:saving?"#9CA3AF":T.tealMid,color:"#fff",border:"none",borderRadius:12,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:FONT_SANS}}>
+          {saving?"Saving…":"Save"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -331,17 +370,11 @@ function Toggle({value,onChange,label}){
   </div>;
 }
 
-function Slider({min,max,step=0.5,value,onChange,unit=" fr"}){
-  return<div style={{display:"flex",alignItems:"center",gap:14}}>
-    <input type="range" min={min} max={max} step={step} value={value} onChange={e=>onChange(parseFloat(e.target.value))} style={{flex:1,accentColor:T.tealMid,height:4}}/>
-    <span style={{fontFamily:FONT_SANS,fontSize:16,fontWeight:700,color:T.ink,minWidth:52,textAlign:"right"}}>{value}{unit}</span>
-  </div>;
-}
-
-function Stepper({value,onChange,min=0,max=99,display}){
+// +/- stepper — replaces sliders for frame counts etc.
+function Stepper({value,onChange,min=0,max=99,display,unit=""}){
   return<div style={{display:"flex",alignItems:"center",gap:14}}>
     <button onClick={()=>onChange(Math.max(min,value-1))} style={{width:50,height:50,border:`0.5px solid ${T.border}`,borderRadius:12,background:T.white,fontSize:22,cursor:"pointer",fontFamily:FONT_SANS,flexShrink:0,color:T.inkMid}}>−</button>
-    <div style={{flex:1,textAlign:"center"}}>{display||<span style={{fontFamily:FONT_SANS,fontSize:26,fontWeight:700,color:T.ink}}>{value}</span>}</div>
+    <div style={{flex:1,textAlign:"center"}}>{display||<span style={{fontFamily:FONT_SANS,fontSize:26,fontWeight:700,color:T.ink}}>{value}{unit&&<span style={{fontSize:16,color:T.inkLight,marginLeft:4}}>{unit}</span>}</span>}</div>
     <button onClick={()=>onChange(Math.min(max,value+1))} style={{width:50,height:50,border:`0.5px solid ${T.border}`,borderRadius:12,background:T.white,fontSize:22,cursor:"pointer",fontFamily:FONT_SANS,flexShrink:0,color:T.inkMid}}>+</button>
   </div>;
 }
@@ -389,16 +422,17 @@ function SectionLabel({children}){
   return<div style={{fontFamily:FONT_SANS,fontSize:11,fontWeight:700,color:T.inkLight,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10,paddingLeft:2}}>{children}</div>;
 }
 
+// Action banner — black text on red/amber for outdoor readability
 function ActionBanner({action}){
   const map={
-    high:  {bg:T.redLight,   border:"#FECACA", text:"#7A1F1F", color:"red"},
-    medium:{bg:T.amberLight, border:"#FDE68A", text:"#7A4A00", color:"amber"},
-    low:   {bg:T.surface,    border:T.border,  text:T.inkLight,color:"teal"},
+    high:  {bg:T.redLight,   border:"#FECACA", text:T.ink},
+    medium:{bg:T.amberLight, border:"#FDE68A", text:T.ink},
+    low:   {bg:T.surface,    border:T.border,  text:T.inkLight},
   };
   const s=map[action.priority]||map.low;
   return<div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 16px",background:s.bg,borderBottom:`0.5px solid ${s.border}`}}>
-    <div style={{flexShrink:0,marginTop:1}}><AlertCircle size={16} color={s.color}/></div>
-    <span style={{fontFamily:FONT_SANS,fontSize:13,color:s.text,lineHeight:1.55,flex:1}}>{action.text}</span>
+    <div style={{flexShrink:0,marginTop:2,width:8,height:8,borderRadius:"50%",background:action.priority==="high"?T.red:action.priority==="medium"?T.amber:T.inkLight,marginTop:6}}/>
+    <span style={{fontFamily:FONT_SANS,fontSize:13,color:s.text,lineHeight:1.55,flex:1,fontWeight:action.priority==="low"?400:500}}>{action.text}</span>
   </div>;
 }
 
@@ -437,8 +471,8 @@ function AppHeader({title,subtitle,onBack,rightSlot}){
   </div>;
 }
 
-// ── Home header (special — bee wordmark) ─────────────────────────────────────
-function HomeHeader({farmCount,homeCount,urgentCount,onSafety}){
+// ── Home header ───────────────────────────────────────────────────────────────
+function HomeHeader({farmCount,homeCount,nucCount,urgentCount,onSafety}){
   return<div style={{background:`linear-gradient(160deg, ${T.teal} 0%, ${T.tealMid} 100%)`,padding:"max(env(safe-area-inset-top,0px),14px) 18px 18px",flexShrink:0,position:"relative",overflow:"hidden"}}>
     <HoneycombBg/>
     <div style={{position:"relative",zIndex:1}}>
@@ -455,7 +489,7 @@ function HomeHeader({farmCount,homeCount,urgentCount,onSafety}){
         <button onClick={onSafety} style={{background:T.red,border:"none",borderRadius:10,padding:"10px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:FONT_SANS,letterSpacing:"0.02em"}}>SOS</button>
       </div>
       <div style={{display:"flex",gap:8}}>
-        {[["Farm",farmCount+" hives"],["Home",homeCount+" hives"],["Actions",urgentCount+" urgent"]].map(([label,val])=>(
+        {[["Farm",farmCount+" hives"],["Home",homeCount+" hives"],nucCount>0?["Nucs",nucCount+" active"]:null,["Actions",urgentCount+" urgent"]].filter(Boolean).map(([label,val])=>(
           <div key={label} style={{flex:1,background:"rgba(255,255,255,0.14)",borderRadius:12,padding:"10px 12px",backdropFilter:"blur(4px)"}}>
             <div style={{fontFamily:FONT_SANS,fontSize:10,color:"#9FE1CB",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>
             <div style={{fontFamily:FONT_SANS,fontSize:17,fontWeight:700,color:"#fff",marginTop:2,letterSpacing:"-0.3px"}}>{val}</div>
@@ -466,70 +500,313 @@ function HomeHeader({farmCount,homeCount,urgentCount,onSafety}){
   </div>;
 }
 
+// ── Add Hive Form ─────────────────────────────────────────────────────────────
+function AddHiveForm({hives,onSave,onBack}){
+  const nextNumber=Math.max(0,...hives.map(h=>typeof h.number==="number"?h.number:parseInt(h.number)||0))+1;
+  const[form,setForm]=useState({
+    number:nextNumber,apiary_name:"Farm",hive_type:"National Standard",
+    status:"Active",super_count:0,notes:"",
+  });
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const[saving,setSaving]=useState(false);
+  const handleSave=async()=>{
+    setSaving(true);
+    const{data,error}=await supabase.from("hives").insert([{...form,qe:false,crown_board:false,porter_escapes:false,entrance_reducer:false,mouse_guard:false,insulation:false}]).select().single();
+    if(error){alert("Error: "+error.message);setSaving(false);}
+    else{onSave(data);}
+  };
+  return<div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+    <AppHeader title="Add hive" subtitle="New colony" onBack={onBack}/>
+    <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"12px 14px",WebkitOverflowScrolling:"touch"}}>
+      <FormSection title="Identity">
+        <FormRow label="Hive number"><Stepper value={form.number} min={1} max={999} onChange={v=>set("number",v)}/></FormRow>
+        <FormRow label="Apiary"><SegPicker options={["Farm","Home"]} value={form.apiary_name} onChange={v=>set("apiary_name",v)}/></FormRow>
+        <FormRow label="Hive type" last><SegPicker options={["National Standard","National Deep (14x12)","Langstroth","Poly Nuc"]} value={form.hive_type} onChange={v=>set("hive_type",v)} small/></FormRow>
+      </FormSection>
+      <FormSection title="Notes">
+        <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Origin, notes about this hive…" style={{width:"100%",minHeight:80,border:"none",padding:"16px 18px",fontSize:15,fontFamily:FONT_SANS,resize:"none",background:"transparent",color:T.ink,display:"block"}}/>
+      </FormSection>
+      <button onClick={handleSave} disabled={saving} style={{width:"100%",padding:18,background:saving?"#9CA3AF":T.tealMid,color:"#fff",border:"none",borderRadius:14,fontSize:17,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:FONT_SANS,marginBottom:36}}>
+        {saving?"Adding hive…":"Add hive"}
+      </button>
+    </div>
+  </div>;
+}
+
+// ── Add Nuc Form ──────────────────────────────────────────────────────────────
+function AddNucForm({nucs,hives,onSave,onBack}){
+  const nextN=Math.max(0,...nucs.map(n=>parseInt(n.nuc_number)||0))+1;
+  const[form,setForm]=useState({
+    nuc_number:nextN,origin:"Swarm",parent_hive_id:"",
+    apiary_name:"Farm",status:"Active",notes:"",established_date:todayStr(),
+  });
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const[saving,setSaving]=useState(false);
+  const handleSave=async()=>{
+    setSaving(true);
+    const record={...form,parent_hive_id:form.origin==="Split"&&form.parent_hive_id?form.parent_hive_id:null};
+    const{data,error}=await supabase.from("nucs").insert([record]).select().single();
+    if(error){alert("Error: "+error.message);setSaving(false);}
+    else{onSave(data);}
+  };
+  return<div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+    <AppHeader title="Add Nuc" subtitle="Temporary colony" onBack={onBack}/>
+    <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"12px 14px",WebkitOverflowScrolling:"touch"}}>
+      <FormSection title="Identity">
+        <FormRow label="Nuc number"><Stepper value={form.nuc_number} min={1} max={99} onChange={v=>set("nuc_number",v)} display={<span style={{fontFamily:FONT_SANS,fontSize:26,fontWeight:700,color:T.ink}}>N{form.nuc_number}</span>}/></FormRow>
+        <FormRow label="Apiary"><SegPicker options={["Farm","Home"]} value={form.apiary_name} onChange={v=>set("apiary_name",v)}/></FormRow>
+        <FormRow label="Date established" last><input type="date" value={form.established_date} onChange={e=>set("established_date",e.target.value)} style={inputStyle}/></FormRow>
+      </FormSection>
+      <FormSection title="Origin">
+        <FormRow label="Where did this nuc come from?"><SegPicker options={["Swarm","Split"]} value={form.origin} onChange={v=>set("origin",v)}/></FormRow>
+        {form.origin==="Split"&&<FormRow label="Parent hive" last>
+          <select value={form.parent_hive_id} onChange={e=>set("parent_hive_id",e.target.value)} style={{...inputStyle,appearance:"none"}}>
+            <option value="">Select parent hive…</option>
+            {hives.filter(h=>h.status==="Active").map(h=><option key={h.id} value={h.id}>Hive {h.number} — {h.apiary_name}</option>)}
+          </select>
+        </FormRow>}
+      </FormSection>
+      <FormSection title="Notes">
+        <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Queen status, condition, date caught…" style={{width:"100%",minHeight:80,border:"none",padding:"16px 18px",fontSize:15,fontFamily:FONT_SANS,resize:"none",background:"transparent",color:T.ink,display:"block"}}/>
+      </FormSection>
+      <button onClick={handleSave} disabled={saving} style={{width:"100%",padding:18,background:saving?"#9CA3AF":T.tealMid,color:"#fff",border:"none",borderRadius:14,fontSize:17,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:FONT_SANS,marginBottom:36}}>
+        {saving?"Adding nuc…":"Add N"+form.nuc_number}
+      </button>
+    </div>
+  </div>;
+}
+
+// ── Promote Nuc → Hive ────────────────────────────────────────────────────────
+function PromoteNucForm({nuc,hives,onSave,onBack}){
+  const nextNumber=Math.max(0,...hives.map(h=>typeof h.number==="number"?h.number:parseInt(h.number)||0))+1;
+  const[hiveNumber,setHiveNumber]=useState(nextNumber);
+  const[apiary,setApiary]=useState(nuc.apiary_name||"Farm");
+  const[hiveType,setHiveType]=useState("National Standard");
+  const[saving,setSaving]=useState(false);
+  const handleSave=async()=>{
+    setSaving(true);
+    // Create the new hive
+    const{data:newHive,error:hiveErr}=await supabase.from("hives").insert([{
+      number:hiveNumber,apiary_name:apiary,hive_type:hiveType,status:"Active",
+      super_count:0,notes:`Promoted from Nuc N${nuc.nuc_number} on ${todayStr()}. Origin: ${nuc.origin}.`,
+      qe:false,crown_board:false,porter_escapes:false,entrance_reducer:false,mouse_guard:false,insulation:false,
+    }]).select().single();
+    if(hiveErr){alert("Error: "+hiveErr.message);setSaving(false);return;}
+    // Mark nuc as promoted
+    await supabase.from("nucs").update({status:"Promoted",promoted_to_hive_id:newHive.id,promoted_date:todayStr()}).eq("id",nuc.id);
+    onSave(newHive,{...nuc,status:"Promoted",promoted_to_hive_id:newHive.id});
+  };
+  return<div style={{height:"100%",display:"flex",flexDirection:"column"}}>
+    <AppHeader title={`Promote N${nuc.nuc_number}`} subtitle="Move into a full hive" onBack={onBack}/>
+    <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"12px 14px",WebkitOverflowScrolling:"touch"}}>
+      <div style={{background:T.tealLight,borderRadius:14,padding:"14px 18px",marginBottom:14}}>
+        <div style={{fontFamily:FONT_SANS,fontSize:13,fontWeight:700,color:T.teal,marginBottom:3}}>Nuc N{nuc.nuc_number}</div>
+        <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.tealMid}}>Origin: {nuc.origin}{nuc.established_date?` · Est. ${formatDate(nuc.established_date)}`:""}</div>
+        {nuc.notes&&<div style={{fontFamily:FONT_SANS,fontSize:12,color:T.tealMid,marginTop:4}}>{nuc.notes}</div>}
+      </div>
+      <FormSection title="New hive details">
+        <FormRow label="Hive number"><Stepper value={hiveNumber} min={1} max={999} onChange={setHiveNumber}/></FormRow>
+        <FormRow label="Apiary"><SegPicker options={["Farm","Home"]} value={apiary} onChange={setApiary}/></FormRow>
+        <FormRow label="Hive type" last><SegPicker options={["National Standard","National Deep (14x12)","Langstroth"]} value={hiveType} onChange={setHiveType} small/></FormRow>
+      </FormSection>
+      <button onClick={handleSave} disabled={saving} style={{width:"100%",padding:18,background:saving?"#9CA3AF":T.tealMid,color:"#fff",border:"none",borderRadius:14,fontSize:17,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:FONT_SANS,marginBottom:36}}>
+        {saving?"Promoting…":`Create Hive ${hiveNumber} from N${nuc.nuc_number}`}
+      </button>
+    </div>
+  </div>;
+}
+
 // ── Inspection Form ───────────────────────────────────────────────────────────
-function InspectionForm({hive,queens,existingInspection,onSave,onBack}){
+function InspectionForm({hive,queens,inspections,existingInspection,onSave,onBack}){
   const isEdit=!!existingInspection;
   const activeQueen=queens.find(q=>q.hive_id===hive.id&&!q.lost_date);
-  const mk=(k,fallback)=>isEdit?(existingInspection[k]??fallback):fallback;
+
+  // Get last inspection to default sliders
+  const lastInspection=inspections
+    .filter(i=>i.hive_id===hive.id)
+    .sort((a,b)=>new Date(b.visit_date)-new Date(a.visit_date))[0];
+
+  const mk=(k,fallback)=>{
+    if(isEdit) return existingInspection[k]??fallback;
+    // Default to last inspection value if available, else fallback
+    return lastInspection?.(lastInspection[k]??fallback)??fallback;
+  };
+
   const[form,setForm]=useState({
-    visit_date:mk("visit_date",todayStr()),visit_time:mk("visit_time",nowTimeStr()),
-    queen_seen:mk("queen_seen",""),queen_number:mk("queen_number",activeQueen?.number||""),queen_colour:mk("queen_colour",activeQueen?.colour||""),
-    qc_count:mk("qc_count",0),qc_action:mk("qc_action","None seen"),qc_note:mk("qc_note",""),
-    brood_status:mk("brood_status","BIAS"),brood_frames:mk("brood_frames",3),
-    stores:mk("stores",5),room:mk("room",4),
-    health:mk("health","OK"),health_note:mk("health_note",""),
-    varroa:mk("varroa","Not checked"),temperament:mk("temperament",null),
-    feed_given:mk("feed_given","None"),feed_qty:mk("feed_qty",""),
+    visit_date:isEdit?existingInspection.visit_date:todayStr(),
+    visit_time:isEdit?existingInspection.visit_time:nowTimeStr(),
+    queen_status:isEdit?(existingInspection.queen_status||existingInspection.queen_seen||""):"",
+    queen_colour:isEdit?(existingInspection.queen_colour||activeQueen?.colour||""):(activeQueen?.colour||""),
+    qc_count:mk("qc_count",0),
+    qc_action:mk("qc_action","None seen"),
+    qc_note:mk("qc_note",""),
+    brood_status:mk("brood_status","BIAS"),
+    brood_frames:lastInspection?lastInspection.brood_frames??3:3,
+    qc_capped_date:mk("qc_capped_date",""),
+    qc_hatched_date:mk("qc_hatched_date",""),
+    eggs_first_seen_date:mk("eggs_first_seen_date",""),
+    stores:lastInspection?lastInspection.stores??5:5,
+    room:lastInspection?lastInspection.room??4:4,
+    health:mk("health","OK"),
+    health_note:mk("health_note",""),
+    varroa:mk("varroa","Not checked"),
+    temperament:mk("temperament",null),
+    feed_given:mk("feed_given","None"),
+    feed_qty:mk("feed_qty",""),
     supers_change:mk("supers_change",0),
-    weather_condition:mk("weather_condition","Sun"),weather_temp:mk("weather_temp",16),
-    qe:mk("qe",hive.qe),crown_board:mk("crown_board",hive.crown_board),
-    porter_escapes:mk("porter_escapes",hive.porter_escapes),entrance_reducer:mk("entrance_reducer",hive.entrance_reducer),
-    mouse_guard:mk("mouse_guard",hive.mouse_guard),insulation:mk("insulation",hive.insulation),
+    weather_condition:mk("weather_condition","Sun"),
+    weather_temp:mk("weather_temp",16),
+    qe:mk("qe",hive.qe),
+    crown_board:mk("crown_board",hive.crown_board),
+    porter_escapes:mk("porter_escapes",hive.porter_escapes),
+    entrance_reducer:mk("entrance_reducer",hive.entrance_reducer),
+    mouse_guard:mk("mouse_guard",hive.mouse_guard),
+    insulation:mk("insulation",hive.insulation),
     notes:mk("notes",""),
   });
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const supersTotal=Math.max(0,hive.super_count+(isEdit?0:form.supers_change));
   const[saving,setSaving]=useState(false);
+  const[showQueenModal,setShowQueenModal]=useState(false);
+
+  const isQueenless=form.queen_status==="Queenless";
+  const isVirgin=form.queen_status==="Virgin queen";
+  const queenSeen=form.queen_status==="Seen";
+  const eggsOrQueenSeen=queenSeen||form.brood_status==="BIAS";
+
+  // When queen status changes to/from Queenless, adjust brood defaults
+  const handleQueenStatus=v=>{
+    set("queen_status",v);
+    if(v==="Queenless"){
+      set("brood_status","No eggs");
+    }
+  };
 
   const handleSave=async()=>{
     setSaving(true);
-    const firstEggs=!isEdit&&form.queen_seen==="Seen"&&form.brood_status==="BIAS";
+    // Map queen_status back to queen_seen for DB compatibility
+    const record={
+      ...form,
+      queen_seen:form.queen_status,
+      supers_total:supersTotal,
+    };
     if(isEdit){
-      const{error}=await supabase.from("inspections").update({...form}).eq("id",existingInspection.id);
-      if(error){alert("Error: "+error.message);}else{onSave({...existingInspection,...form},0,true,false);}
+      const{error}=await supabase.from("inspections").update(record).eq("id",existingInspection.id);
+      if(error){alert("Error: "+error.message);setSaving(false);return;}
+      onSave({...existingInspection,...record},0,true,false);
     }else{
-      const record={hive_id:hive.id,...form,supers_total:supersTotal};
-      const{error}=await supabase.from("inspections").insert([record]);
-      if(!error){await supabase.from("hives").update({super_count:supersTotal}).eq("id",hive.id);onSave(record,form.supers_change,false,firstEggs);}
-      else{alert("Error: "+error.message);}
+      const{error}=await supabase.from("inspections").insert([{hive_id:hive.id,...record}]);
+      if(!error){
+        await supabase.from("hives").update({super_count:supersTotal}).eq("id",hive.id);
+        const firstEggs=queenSeen&&form.brood_status==="BIAS"&&!activeQueen?.eggs_first_seen;
+        if(queenSeen&&!activeQueen?.marked){
+          // Will show modal after save
+          setShowQueenModal(true);
+          setSaving(false);
+          return;
+        }
+        onSave(record,form.supers_change,false,firstEggs);
+      }else{alert("Error: "+error.message);}
     }
     setSaving(false);
   };
 
+  if(showQueenModal){
+    return<div style={{height:"100%",display:"flex",flexDirection:"column",position:"relative"}}>
+      <AppHeader title={`Hive ${hive.number} — inspect`} subtitle="Queen seen" onBack={onBack}/>
+      <div style={{flex:1,background:T.surface}}/>
+      <QueenSeenModal hive={hive} queen={activeQueen} onDone={async({marked,clipped})=>{
+        setShowQueenModal(false);
+        // Update queen record if exists
+        if(activeQueen){
+          await supabase.from("queens").update({marked,clipped}).eq("id",activeQueen.id);
+        }
+        const record={...form,queen_seen:form.queen_status,supers_total:supersTotal};
+        const{error}=await supabase.from("inspections").insert([{hive_id:hive.id,...record}]);
+        if(!error){
+          await supabase.from("hives").update({super_count:supersTotal}).eq("id",hive.id);
+          const firstEggs=queenSeen&&form.brood_status==="BIAS"&&!activeQueen?.eggs_first_seen;
+          onSave(record,form.supers_change,false,firstEggs);
+        }else{alert("Error: "+error.message);}
+      }}/>
+    </div>;
+  }
+
   return<div style={{height:"100%",display:"flex",flexDirection:"column"}}>
     <AppHeader title={`Hive ${hive.number} — ${isEdit?"edit":"inspect"}`} subtitle={`${hive.apiary_name} · ${form.visit_date} · ${form.visit_time}`} onBack={onBack}/>
     <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"12px 14px",WebkitOverflowScrolling:"touch"}}>
-      <FormSection title="Queen">
-        <FormRow label="Queen seen?"><SegPicker options={["Seen","Not found","Not looked"]} value={form.queen_seen} onChange={v=>set("queen_seen",v)}/></FormRow>
-        <FormRow label="Queen colour"><SegPicker options={["White","Yellow","Red","Green","Blue"]} value={form.queen_colour} onChange={v=>set("queen_colour",v)} small/></FormRow>
-        <FormRow label="Queen cells seen"><Stepper value={form.qc_count} onChange={v=>set("qc_count",v)} max={20}/></FormRow>
-        {form.qc_count>0&&<FormRow label="Action taken"><SegPicker options={["All removed","1 left","2 left","Other"]} value={form.qc_action} onChange={v=>set("qc_action",v)}/></FormRow>}
-        <FormRow label="QC notes" last><input value={form.qc_note} onChange={e=>set("qc_note",e.target.value)} placeholder="Frame locations, capped vs open…" style={inputStyle}/></FormRow>
+
+      {/* Queen Status */}
+      <FormSection title="Queen status">
+        <FormRow label="Queen status">
+          <SegPicker
+            options={["Seen","Not found","Not looked","Virgin queen","Queenless","DLQ","DLW"]}
+            value={form.queen_status}
+            onChange={handleQueenStatus}
+            small
+          />
+        </FormRow>
+
+        {/* Colour — only show if not queenless */}
+        {!isQueenless&&(
+          <FormRow label="Queen colour">
+            <SegPicker options={["White","Yellow","Red","Green","Blue","Unknown"]} value={form.queen_colour} onChange={v=>set("queen_colour",v)} small/>
+          </FormRow>
+        )}
+
+        <FormRow label="Queen cells seen">
+          <Stepper value={form.qc_count} onChange={v=>set("qc_count",v)} max={20}/>
+        </FormRow>
+        {form.qc_count>0&&<FormRow label="Action taken">
+          <SegPicker options={["All removed","1 left","2 left","Other"]} value={form.qc_action} onChange={v=>set("qc_action",v)}/>
+        </FormRow>}
+        <FormRow label="QC notes" last>
+          <input value={form.qc_note} onChange={e=>set("qc_note",e.target.value)} placeholder="Frame locations, capped vs open…" style={inputStyle}/>
+        </FormRow>
       </FormSection>
-      <FormSection title="Brood">
-        <FormRow label="Status"><SegPicker options={["BIAS","No eggs","No brood","Drone only"]} value={form.brood_status} onChange={v=>set("brood_status",v)}/></FormRow>
-        {form.brood_status==="BIAS"&&<FormRow label="Frames covered"><Slider min={0.5} max={11} step={0.5} value={form.brood_frames} onChange={v=>set("brood_frames",v)} unit=" fr"/></FormRow>}
-        <FormRow label="Stores" sublabel="space available"><Slider min={0} max={20} step={1} value={form.stores} onChange={v=>set("stores",v)} unit=" fr"/></FormRow>
-        <FormRow label="Room" sublabel="space for queen to lay" last><Slider min={0} max={11} step={1} value={form.room} onChange={v=>set("room",v)} unit=" fr"/></FormRow>
-      </FormSection>
+
+      {/* Brood — if queenless, show simplified queenless fields */}
+      {isQueenless?(
+        <FormSection title="Queenless status">
+          <FormRow label="QC capped date">
+            <input type="date" value={form.qc_capped_date} onChange={e=>set("qc_capped_date",e.target.value)} style={inputStyle}/>
+          </FormRow>
+          <FormRow label="QC hatched date">
+            <input type="date" value={form.qc_hatched_date} onChange={e=>set("qc_hatched_date",e.target.value)} style={inputStyle}/>
+          </FormRow>
+          <FormRow label="Date eggs first seen" last>
+            <input type="date" value={form.eggs_first_seen_date} onChange={e=>set("eggs_first_seen_date",e.target.value)} style={inputStyle}/>
+          </FormRow>
+        </FormSection>
+      ):(
+        <FormSection title="Brood">
+          <FormRow label="Status">
+            <SegPicker options={["BIAS","No eggs","No brood","Drone only"]} value={form.brood_status} onChange={v=>set("brood_status",v)}/>
+          </FormRow>
+          {form.brood_status==="BIAS"&&(
+            <FormRow label="Frames covered">
+              <Stepper value={form.brood_frames} min={0.5} max={11} onChange={v=>set("brood_frames",v)} unit="fr"/>
+            </FormRow>
+          )}
+          <FormRow label="Stores" sublabel="frames">
+            <Stepper value={form.stores} min={0} max={20} onChange={v=>set("stores",v)} unit="fr"/>
+          </FormRow>
+          <FormRow label="Room" sublabel="frames for queen to lay" last>
+            <Stepper value={form.room} min={0} max={11} onChange={v=>set("room",v)} unit="fr"/>
+          </FormRow>
+        </FormSection>
+      )}
+
       <FormSection title="Health & Varroa">
         <FormRow label="Health"><SegPicker options={["OK","Chalk brood?","EFB?","AFB?","Varroa concern"]} value={form.health} onChange={v=>set("health",v)} small/></FormRow>
         {form.health!=="OK"&&<FormRow label="Health note"><textarea value={form.health_note} onChange={e=>set("health_note",e.target.value)} placeholder="Describe what you observed…" style={{...inputStyle,minHeight:72,resize:"none"}}/></FormRow>}
         <FormRow label="Varroa drop" last><SegPicker options={["Not checked","Low","Medium","High"]} value={form.varroa} onChange={v=>set("varroa",v)}/></FormRow>
       </FormSection>
+
       <FormSection title="Temperament">
         <FormRow label="Colony temperament" sublabel="5 = very calm · 1 = aborted" last><TemperPicker value={form.temperament} onChange={v=>set("temperament",v)}/></FormRow>
       </FormSection>
+
       {!isEdit&&<FormSection title="Supers">
         <FormRow label="Change this visit" last>
           <Stepper value={form.supers_change} min={-10} max={10} onChange={v=>set("supers_change",v)}
@@ -539,22 +816,27 @@ function InspectionForm({hive,queens,existingInspection,onSave,onBack}){
             </div>}/>
         </FormRow>
       </FormSection>}
+
       <FormSection title="Feed">
         <FormRow label="Feed given"><SegPicker options={["None","Light syrup (1:1)","Heavy syrup (2:1)","Fondant","Pollen patty"]} value={form.feed_given} onChange={v=>set("feed_given",v)} small/></FormRow>
         {form.feed_given!=="None"&&<FormRow label="Quantity" last><input value={form.feed_qty} onChange={e=>set("feed_qty",e.target.value)} placeholder="e.g. 2 litres, 2 kg" style={inputStyle}/></FormRow>}
       </FormSection>
+
       <FormSection title="Hive configuration">
         <FormRow last><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
           {[["qe","QE fitted"],["crown_board","Crown board"],["porter_escapes","Porter escapes"],["entrance_reducer","Entrance reducer"],["mouse_guard","Mouse guard"],["insulation","Insulation"]].map(([k,l])=><Toggle key={k} value={form[k]} onChange={v=>set(k,v)} label={l}/>)}
         </div></FormRow>
       </FormSection>
+
       <FormSection title="Weather">
         <FormRow label="Conditions"><SegPicker options={["Sun","Cloud","Rain","Fair"]} value={form.weather_condition} onChange={v=>set("weather_condition",v)}/></FormRow>
         <FormRow label="Temperature" last><Stepper value={form.weather_temp} min={-10} max={40} display={<span style={{fontFamily:FONT_DISPLAY,fontSize:30,color:T.ink}}>{form.weather_temp}°C</span>} onChange={v=>set("weather_temp",v)}/></FormRow>
       </FormSection>
+
       <FormSection title="Notes">
         <textarea value={form.notes} onChange={e=>set("notes",e.target.value)} placeholder="Observations, actions taken, things to remember…" style={{width:"100%",minHeight:120,border:"none",padding:"16px 18px",fontSize:15,fontFamily:FONT_SANS,resize:"none",background:"transparent",color:T.ink,display:"block",lineHeight:1.6}}/>
       </FormSection>
+
       <button onClick={handleSave} disabled={saving} style={{width:"100%",padding:18,background:saving?"#9CA3AF":T.tealMid,color:"#fff",border:"none",borderRadius:14,fontSize:17,fontWeight:700,cursor:saving?"not-allowed":"pointer",fontFamily:FONT_SANS,marginBottom:36,letterSpacing:"-0.2px"}}>
         {saving?"Saving…":isEdit?"Update inspection":"Save inspection"}
       </button>
@@ -566,7 +848,7 @@ function InspectionForm({hive,queens,existingInspection,onSave,onBack}){
 function QueenEditForm({queen,hives,onSave,onBack}){
   const[form,setForm]=useState({
     hive_id:queen.hive_id||"",colour:queen.colour||"",year:queen.year||new Date().getFullYear(),
-    origin:queen.origin||"",clipped:queen.clipped||false,
+    origin:queen.origin||"",marked:queen.marked||false,clipped:queen.clipped||false,
     qc_uncapped_date:queen.qc_uncapped_date||"",qc_capped_date:queen.qc_capped_date||"",
     queen_emerged_date:queen.queen_emerged_date||"",swarm_split_date:queen.swarm_split_date||"",
     eggs_first_seen:queen.eggs_first_seen||"",lost_date:queen.lost_date||"",
@@ -596,7 +878,8 @@ function QueenEditForm({queen,hives,onSave,onBack}){
         <FormRow label="Colour"><SegPicker options={["White","Yellow","Red","Green","Blue","TBC"]} value={form.colour} onChange={v=>set("colour",v)} small/></FormRow>
         <FormRow label="Year"><Stepper value={form.year} min={2020} max={2035} onChange={v=>set("year",v)}/></FormRow>
         <FormRow label="Origin"><input value={form.origin} onChange={e=>set("origin",e.target.value)} style={inputStyle} placeholder="e.g. Raised from QC, BMH colony…"/></FormRow>
-        <FormRow label="Clipped?" last><Toggle value={form.clipped} onChange={v=>set("clipped",v)} label="Queen clipped"/></FormRow>
+        <FormRow label="Marked?"><Toggle value={form.marked} onChange={v=>set("marked",v)} label="Queen is marked"/></FormRow>
+        <FormRow label="Clipped?" last><Toggle value={form.clipped} onChange={v=>set("clipped",v)} label="Queen is clipped"/></FormRow>
       </FormSection>
       <FormSection title="Key dates">
         {[["qc_uncapped_date","QC uncapped"],["qc_capped_date","QC capped"],["queen_emerged_date","Queen emerged"],["swarm_split_date","Swarm / split"],["eggs_first_seen","Eggs first seen"],["lost_date","Lost date"]].map(([k,l])=>(
@@ -669,7 +952,7 @@ function InspectionHiveSelect({inspection,hives,onSave,onBack}){
     <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"12px 14px",WebkitOverflowScrolling:"touch"}}>
       <div style={{background:T.amberLight,border:`0.5px solid #F5D08A`,borderRadius:14,padding:"14px 18px",marginBottom:14}}>
         <div style={{fontFamily:FONT_SANS,fontSize:13,fontWeight:700,color:T.amber,marginBottom:3}}>Moving this inspection</div>
-        <div style={{fontFamily:FONT_SANS,fontSize:12,color:"#7A5500",lineHeight:1.5}}>{formatDate(inspection.visit_date)} · {inspection.brood_status}{inspection.notes?` · ${inspection.notes.slice(0,50)}…`:""}</div>
+        <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.ink,lineHeight:1.5}}>{formatDate(inspection.visit_date)} · {inspection.brood_status}{inspection.notes?` · ${inspection.notes.slice(0,50)}…`:""}</div>
       </div>
       <FormSection title="Select the correct hive">
         {hives.map(h=>(
@@ -708,7 +991,11 @@ function QueenRegister({queens,hives,onBack,onEditQueen}){
           <div style={{position:"absolute",bottom:-2,right:-2,background:cBg[queen.colour]||T.surface,borderRadius:99,padding:"1px 4px",fontFamily:FONT_SANS,fontSize:9,fontWeight:700,color:cTx[queen.colour]||T.inkMid,border:`0.5px solid ${T.border}`}}>#{queen.number}</div>
         </div>
         <div style={{flex:1}}>
-          <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.ink}}>Queen #{queen.number}{hive?` · Hive ${hive.number}`:" · Unassigned"}</div>
+          <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.ink}}>
+            Queen #{queen.number}{hive?` · Hive ${hive.number}`:" · Unassigned"}
+            {queen.marked&&<span style={{marginLeft:6,fontSize:11,background:T.tealLight,color:T.teal,padding:"1px 6px",borderRadius:99,fontWeight:600}}>Marked</span>}
+            {queen.clipped&&<span style={{marginLeft:4,fontSize:11,background:T.amberLight,color:T.amber,padding:"1px 6px",borderRadius:99,fontWeight:600}}>Clipped</span>}
+          </div>
           <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.inkLight,marginTop:2}}>{queen.colour} · {queen.year} · {queen.origin}</div>
         </div>
         <Badge color={isLost?"gray":"teal"}>{isLost?queen.lost_reason:"Active"}</Badge>
@@ -774,12 +1061,12 @@ function SafetyScreen({hives,onBack}){
           <div style={{fontFamily:FONT_SANS,fontSize:14,color:T.teal,fontWeight:600,marginTop:3}}>{a.emergencyPhone}</div>
         </div>
       </div>
-        <a href={`tel:${a.emergencyPhone}`} style={{textDecoration:"none",display:"block",marginBottom:16}}>
-          <div style={{width:"100%",padding:20,background:T.red,color:"#fff",borderRadius:16,fontSize:17,fontWeight:700,textAlign:"center",fontFamily:FONT_SANS,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.17 6.17l1.27-.84a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
-            Call {a.emergencyContact}
-          </div>
-        </a>
+      <a href={`tel:${a.emergencyPhone}`} style={{textDecoration:"none",display:"block",marginBottom:16}}>
+        <div style={{width:"100%",padding:20,background:T.red,color:"#fff",borderRadius:16,fontSize:17,fontWeight:700,textAlign:"center",fontFamily:FONT_SANS,display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.17 6.17l1.27-.84a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+          Call {a.emergencyContact}
+        </div>
+      </a>
       <SectionLabel>Hives at this apiary</SectionLabel>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         {hives.filter(h=>h.apiary_name===apiary).map(h=><div key={h.id} style={{background:T.white,borderRadius:12,border:`0.5px solid ${T.border}`,padding:"12px 14px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 1px 2px rgba(0,0,0,0.03)"}}>
@@ -818,6 +1105,7 @@ function InspectionHistory({hive,inspections,onBack,onEdit,onMove}){
             <Badge>{ins.supers_total} super{ins.supers_total!==1?"s":""}</Badge>
             {ins.feed_given!=="None"&&<Badge color="amber">Fed: {ins.feed_given}</Badge>}
             <Badge color="gray">{ins.weather_condition} {ins.weather_temp}°C</Badge>
+            {(ins.queen_status||ins.queen_seen)&&<Badge color={(ins.queen_status||ins.queen_seen)==="Queenless"?"red":(ins.queen_status||ins.queen_seen)==="Seen"?"teal":"gray"}>{ins.queen_status||ins.queen_seen}</Badge>}
           </div>
           {ins.qc_count>0&&<div style={{fontFamily:FONT_SANS,fontSize:13,color:T.inkLight,marginBottom:6}}>QCs: {ins.qc_count} · {ins.qc_action}</div>}
           {ins.notes&&<div style={{fontFamily:FONT_SANS,fontSize:14,color:T.inkMid,lineHeight:1.6,borderTop:`0.5px solid ${T.border}`,paddingTop:10,marginTop:4}}>{ins.notes}</div>}
@@ -829,9 +1117,10 @@ function InspectionHistory({hive,inspections,onBack,onEdit,onMove}){
 }
 
 // ── Home Screen ───────────────────────────────────────────────────────────────
-function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEditHive}){
+function HomeScreen({hives,nucs,inspections,queens,onInspect,onSafety,onHistory,onEditHive,onAddHive,onAddNuc,onPromoteNuc}){
   const farmHives=hives.filter(h=>h.apiary_name==="Farm"&&h.status==="Active");
   const homeHives=hives.filter(h=>h.apiary_name==="Home"&&h.status==="Active");
+  const activeNucs=nucs.filter(n=>n.status==="Active");
   const allActiveHives=hives.filter(h=>h.status==="Active");
   const totalHigh=allActiveHives.reduce((n,h)=>n+generateActions(h,inspections,queens).filter(a=>a.priority==="high").length,0);
 
@@ -844,7 +1133,7 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
     const isHealthy=high.length===0&&med.length===0;
     const statusColor=high.length?T.red:med.length?T.amber:T.tealMid;
     const[open,setOpen]=useState(high.length>0);
-    return<div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)",transition:"box-shadow 0.2s"}}>
+    return<div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
       <div onClick={()=>setOpen(!open)} style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:14,cursor:"pointer",borderBottom:open?`0.5px solid ${T.border}`:"none"}}>
         <div style={{width:42,height:42,borderRadius:"50%",background:T.tealLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:T.teal,flexShrink:0,fontFamily:FONT_SANS}}>{hive.number}</div>
         <div style={{flex:1}}>
@@ -861,7 +1150,7 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
             <Badge>BIAS {last.brood_frames}fr</Badge>
             <Badge>Stores {last.stores}</Badge>
             <Badge>{last.supers_total} super{last.supers_total!==1?"s":""}</Badge>
-            <Badge>Temper {last.temperament}/5</Badge>
+            {last.temperament&&<Badge>Temper {last.temperament}/5</Badge>}
           </div>
         )}
         <div style={{padding:"10px 18px 16px",display:"flex",gap:8}}>
@@ -873,8 +1162,30 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
     </div>;
   };
 
+  const NucCard=({nuc})=>{
+    const parentHive=hives.find(h=>h.id===nuc.parent_hive_id);
+    return<div style={{background:T.white,borderRadius:16,border:`0.5px solid ${T.border}`,marginBottom:10,overflow:"hidden",boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
+      <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:14}}>
+        <div style={{width:42,height:42,borderRadius:"50%",background:T.amberLight,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+          <span style={{fontFamily:FONT_SANS,fontSize:13,fontWeight:700,color:T.amber}}>N{nuc.nuc_number}</span>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{fontFamily:FONT_SANS,fontSize:15,fontWeight:700,color:T.ink}}>Nuc N{nuc.nuc_number}</div>
+          <div style={{fontFamily:FONT_SANS,fontSize:12,color:T.inkLight,marginTop:2}}>
+            {nuc.origin}{parentHive?` from Hive ${parentHive.number}`:""} · {nuc.apiary_name}
+            {nuc.established_date?` · Est. ${formatDate(nuc.established_date)}`:""}
+          </div>
+        </div>
+        <button onClick={()=>onPromoteNuc(nuc)} style={{padding:"8px 12px",background:T.tealLight,color:T.teal,border:"none",borderRadius:10,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:FONT_SANS,flexShrink:0}}>
+          → Hive
+        </button>
+      </div>
+      {nuc.notes&&<div style={{padding:"0 18px 14px",fontFamily:FONT_SANS,fontSize:13,color:T.inkMid,lineHeight:1.5}}>{nuc.notes}</div>}
+    </div>;
+  };
+
   return<div style={{height:"100%",display:"flex",flexDirection:"column"}}>
-    <HomeHeader farmCount={farmHives.length} homeCount={homeHives.length} urgentCount={totalHigh} onSafety={onSafety}/>
+    <HomeHeader farmCount={farmHives.length} homeCount={homeHives.length} nucCount={activeNucs.length} urgentCount={totalHigh} onSafety={onSafety}/>
     <div style={{flex:1,overflowY:"auto",background:T.surface,padding:"14px 14px",WebkitOverflowScrolling:"touch"}}>
       <AllClearBanner hives={hives} inspections={inspections}/>
       <StreakCard inspections={inspections} hives={hives}/>
@@ -882,6 +1193,15 @@ function HomeScreen({hives,inspections,queens,onInspect,onSafety,onHistory,onEdi
       {farmHives.map(h=><HiveCard key={h.id} hive={h}/>)}
       <SectionLabel>Home apiary</SectionLabel>
       {homeHives.map(h=><HiveCard key={h.id} hive={h}/>)}
+      {activeNucs.length>0&&<>
+        <SectionLabel>Nucs</SectionLabel>
+        {activeNucs.map(n=><NucCard key={n.id} nuc={n}/>)}
+      </>}
+      {/* Add buttons */}
+      <div style={{display:"flex",gap:8,marginTop:4,marginBottom:8}}>
+        <button onClick={onAddHive} style={{flex:1,padding:"13px",background:T.white,color:T.teal,border:`1.5px dashed ${T.tealSoft}`,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:FONT_SANS}}>+ Add hive</button>
+        <button onClick={onAddNuc} style={{flex:1,padding:"13px",background:T.white,color:T.amber,border:`1.5px dashed #F5D08A`,borderRadius:12,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:FONT_SANS}}>+ Add nuc</button>
+      </div>
       <div style={{height:12}}/>
     </div>
   </div>;
@@ -911,6 +1231,7 @@ export default function App(){
   const[hives,setHives]=useState([]);
   const[queens,setQueens]=useState([]);
   const[inspections,setInspections]=useState([]);
+  const[nucs,setNucs]=useState([]);
   const[loading,setLoading]=useState(true);
   const[screen,setScreen]=useState("home");
   const[tab,setTab]=useState("home");
@@ -919,18 +1240,20 @@ export default function App(){
   const[movingInspection,setMovingInspection]=useState(null);
   const[editingQueen,setEditingQueen]=useState(null);
   const[editingHive,setEditingHive]=useState(null);
+  const[promotingNuc,setPromotingNuc]=useState(null);
   const[celebration,setCelebration]=useState(null);
   const[celebrationData,setCelebrationData]=useState(null);
   const[milestone,setMilestone]=useState(null);
 
   useEffect(()=>{
     async function load(){
-      const[{data:h},{data:q},{data:i}]=await Promise.all([
+      const[{data:h},{data:q},{data:i},{data:n}]=await Promise.all([
         supabase.from("hives").select("*").order("number"),
         supabase.from("queens").select("*").order("number"),
         supabase.from("inspections").select("*").order("visit_date",{ascending:false}),
+        supabase.from("nucs").select("*").order("nuc_number").catch(()=>({data:[]})),
       ]);
-      setHives(h||[]);setQueens(q||[]);setInspections(i||[]);setLoading(false);
+      setHives(h||[]);setQueens(q||[]);setInspections(i||[]);setNucs(n||[]);setLoading(false);
     }
     load();
   },[]);
@@ -951,6 +1274,7 @@ export default function App(){
   const handleMove=ins=>{setMovingInspection(ins);setScreen("move");};
   const handleEditQueen=q=>{setEditingQueen(q);setScreen("editqueen");};
   const handleEditHive=h=>{setEditingHive(h);setScreen("edithive");};
+  const handlePromoteNuc=n=>{setPromotingNuc(n);setScreen("promotenuc");};
 
   const handleSaveInspection=(inspection,supersChange,isEdit,triggersFirstEggs)=>{
     if(isEdit){setInspections(prev=>prev.map(i=>i.id===inspection.id?inspection:i));setScreen("history");}
@@ -966,6 +1290,13 @@ export default function App(){
   const handleMoveInspection=moved=>{setInspections(prev=>prev.map(i=>i.id===moved.id?moved:i));setMovingInspection(null);setScreen("home");setTab("home");};
   const handleSaveQueen=q=>{setQueens(prev=>prev.map(x=>x.id===q.id?q:x));setEditingQueen(null);setScreen("queens");};
   const handleSaveHive=h=>{setHives(prev=>prev.map(x=>x.id===h.id?h:x));setEditingHive(null);setScreen("home");setTab("home");};
+  const handleAddHive=h=>{setHives(prev=>[...prev,h].sort((a,b)=>a.number-b.number));setScreen("home");setTab("home");};
+  const handleAddNuc=n=>{setNucs(prev=>[...prev,n]);setScreen("home");setTab("home");};
+  const handlePromoteNucDone=(newHive,updatedNuc)=>{
+    setHives(prev=>[...prev,newHive].sort((a,b)=>a.number-b.number));
+    setNucs(prev=>prev.map(n=>n.id===updatedNuc.id?updatedNuc:n));
+    setPromotingNuc(null);setScreen("home");setTab("home");
+  };
 
   const handleTab=t=>{setTab(t);if(t==="trends"){window.location.href="/trends";return;}setScreen(t);};
   const handleBack=()=>{
@@ -973,6 +1304,7 @@ export default function App(){
     if(screen==="move"){setMovingInspection(null);setScreen("history");return;}
     if(screen==="editqueen"){setEditingQueen(null);setScreen("queens");return;}
     if(screen==="edithive"){setEditingHive(null);setScreen("home");return;}
+    if(screen==="addhive"||screen==="addnuc"||screen==="promotenuc"){setScreen("home");setTab("home");return;}
     setScreen("home");setTab("home");
   };
   const showTab=["home","queens","trends","safety"].includes(screen);
@@ -987,14 +1319,17 @@ export default function App(){
         <HarvestCelebration harvest={celebrationData.harvest} previousBest={celebrationData.previousBest} onDone={()=>{setCelebration(null);setCelebrationData(null);setScreen("home");setTab("home");}}/>
       ):(
         <>
-          {screen==="home"&&<HomeScreen hives={hives} inspections={inspections} queens={queens} onInspect={handleInspect} onSafety={()=>{setScreen("safety");setTab("safety");}} onHistory={handleHistory} onEditHive={handleEditHive}/>}
-          {screen==="inspect"&&selectedHive&&<InspectionForm hive={selectedHive} queens={queens} existingInspection={editingInspection} onSave={handleSaveInspection} onBack={handleBack}/>}
+          {screen==="home"&&<HomeScreen hives={hives} nucs={nucs} inspections={inspections} queens={queens} onInspect={handleInspect} onSafety={()=>{setScreen("safety");setTab("safety");}} onHistory={handleHistory} onEditHive={handleEditHive} onAddHive={()=>setScreen("addhive")} onAddNuc={()=>setScreen("addnuc")} onPromoteNuc={handlePromoteNuc}/>}
+          {screen==="inspect"&&selectedHive&&<InspectionForm hive={selectedHive} queens={queens} inspections={inspections} existingInspection={editingInspection} onSave={handleSaveInspection} onBack={handleBack}/>}
           {screen==="queens"&&<QueenRegister queens={queens} hives={hives} onBack={handleBack} onEditQueen={handleEditQueen}/>}
           {screen==="safety"&&<SafetyScreen hives={hives} onBack={handleBack}/>}
           {screen==="history"&&selectedHive&&<InspectionHistory hive={selectedHive} inspections={inspections} onBack={handleBack} onEdit={handleEdit} onMove={handleMove}/>}
           {screen==="move"&&movingInspection&&<InspectionHiveSelect inspection={movingInspection} hives={hives} onSave={handleMoveInspection} onBack={handleBack}/>}
           {screen==="editqueen"&&editingQueen&&<QueenEditForm queen={editingQueen} hives={hives} onSave={handleSaveQueen} onBack={handleBack}/>}
           {screen==="edithive"&&editingHive&&<HiveEditForm hive={editingHive} onSave={handleSaveHive} onBack={handleBack}/>}
+          {screen==="addhive"&&<AddHiveForm hives={hives} onSave={handleAddHive} onBack={handleBack}/>}
+          {screen==="addnuc"&&<AddNucForm nucs={nucs} hives={hives} onSave={handleAddNuc} onBack={handleBack}/>}
+          {screen==="promotenuc"&&promotingNuc&&<PromoteNucForm nuc={promotingNuc} hives={hives} onSave={handlePromoteNucDone} onBack={handleBack}/>}
           {milestone&&<div style={{position:"absolute",inset:0,zIndex:50}}>
             <FirstEggsMilestone hive={milestone.hive} queen={milestone.queen}
               onLog={async()=>{
