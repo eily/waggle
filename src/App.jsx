@@ -628,8 +628,8 @@ function InspectionForm({hive,queens,inspections,existingInspection,onSave,onBac
 
   const mk=(k,fallback)=>{
     if(isEdit) return existingInspection[k]??fallback;
-    // Default to last inspection value if available, else fallback
-    return lastInspection?.(lastInspection[k]??fallback)??fallback;
+    if(lastInspection&&lastInspection[k]!=null) return lastInspection[k];
+    return fallback;
   };
 
   const[form,setForm]=useState({
