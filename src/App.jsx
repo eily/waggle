@@ -1247,12 +1247,13 @@ export default function App(){
 
   useEffect(()=>{
     async function load(){
-      const[{data:h},{data:q},{data:i},{data:n}]=await Promise.all([
+      const[{data:h},{data:q},{data:i}]=await Promise.all([
         supabase.from("hives").select("*").order("number"),
         supabase.from("queens").select("*").order("number"),
         supabase.from("inspections").select("*").order("visit_date",{ascending:false}),
-        supabase.from("nucs").select("*").order("nuc_number").catch(()=>({data:[]})),
       ]);
+      let n=[];
+      try{const{data:nd}=await supabase.from("nucs").select("*").order("nuc_number");n=nd||[];}catch(_){}
       setHives(h||[]);setQueens(q||[]);setInspections(i||[]);setNucs(n||[]);setLoading(false);
     }
     load();
